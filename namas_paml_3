@@ -1,0 +1,115 @@
+#!/bin/bash
+#bashで動きます
+
+
+
+###pamlの実行
+
+
+
+##解析するディレクトリ
+PAML_DIR=$1
+
+#TREFILEの指定
+TREFILE=$2
+
+#尤度比検定の有意水準を指定
+plrtv=$3
+
+
+##各fastaファイルが格納されているPATHを指定
+#CURRENT_DIRのPATHを取得
+CURRENT_DIR=${PAML_DIR%/RESULTS/*}
+
+#Single_Copy_Orthologue_Sequencesのコドンアライメントまでを行うディレクトリ作成(アミノ酸→コドン→コドントリムド)
+CODON_ALIGNMENT_DIR=$CURRENT_DIR/RESULTS/SINGLE_COPY_ORTHOLOGUES_CODON_ALIGNMENT
+
+#選択がかかったものだけを抽出し格納するディレクトリ(BRANCH_SITEとBRANCH)
+POSITIVE_SELECTED_DIR=$CURRENT_DIR/RESULTS/POSITIVE_SELECTED_GENES
+
+
+
+#作業ディレクトリへ移動
+cd $PAML_DIR
+
+#temp_geneid_listの取得
+TGL=`ls *_gene_list.txt`
+
+#遺伝子IDが書かれたtxtファイルを解析
+while read cotrfa || [ -n "${cotrfa}" ]; do
+    cotrfa_name=${cotrfa%_codon*}
+
+    ##branch-site modelとbranch modelの両解析を行う
+    for testmodel in BRANCH_SITE BRANCH ; do
+
+        #各遺伝子、PAMLの解析モデル用のディレクトリを作成    
+        mkdir -p $PAML_DIR/$cotrfa_name/$testmodel
+        
+        #PAMLのインプットになるtreファイルを作成(branch-site modelの時に作らせて、branch modelの時も使いまわす)
+        if [ $testmodel = BRANCH_SITE ]; then
+            pepnamelist=$CODON_ALIGNMENT_DIR/PEPTIDE_ALIGNMENT/${cotrfa_name}_list.txt
+            newtre=$PAML_DIR/$cotrfa_name/ALLFISH_${cotrfa_name}.tre
+            making_tre_3.py $pepnamelist $TREFILE $newtre
+        fi
+
+        #PAMLのインプットになるctlファイルを作成
+        cd $PAML_DIR/$cotrfa_name/$testmodel
+        
+        #branch-site modelとbranch modelでの条件分岐を行う
+        #パラメータの設定、ctlファイルの一番普通になる条件(branch model,alt)
+        modelnum=2
+        nssites=0
+        fix_omega=0
+        omega=.4
+
+        #対立仮説と帰無仮説でパラメータの値を変更
+        for mode in alternative null ; do
+
+            #branch-site modelなら常にNSsite=2だよ    
+            if [ $testmodel = BRANCH_SITE ]; then
+                nssites=2
+
+                #branch-site modelかつ帰無仮説ならfix_omegaとomegaが1になるよ
+                if [ $mode = null ]; then
+                    fix_omega=1
+                    omega=1
+                fi
+            
+                #branch modelかつ帰無仮説なら
+                else
+                    if [ $mode = null ]; then
+                        modelnum=0
+                    fi
+            fi
+
+            #ctlファイルを作成
+            pamloutput=${cotrfa_name}_${mode}.txt
+            pepctl=${cotrfa_name}_${mode}_PAML.ctl
+            cotrfa_path_name=$CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${cotrfa_name}_codon_aligned_trimed.fasta
+            making_ctl_3.py $cotrfa_path_name $newtre $pamloutput $modelnum $nssites $fix_omega $omega $pepctl
+
+            #PAMLの実行
+            codeml $pepctl
+            
+            #PAML実行時に産まれる虚無ファイルの削除
+            rm -rf '2NG.dN' '2NG.dS' '2NG.t' '4fold.nuc' 'codeml.ctl' 'lnf' 'rst' 'rst1' 'rub'
+
+            #尤度比検定
+            if [ $mode = null ]; then
+                pamlevaluation_3.py $PAML_DIR $cotrfa_name $testmodel $plrtv
+
+                #$POSITIVE_SELECTED_DIR/$testmodelに印をおいておく
+                if grep -q WIN $PAML_DIR/$cotrfa_name/$testmodel/${cotrfa_name}_${testmodel}_DECISION.txt; then
+                    cp $PAML_DIR/$cotrfa_name/$testmodel/${cotrfa_name}_${testmodel}_DECISION.txt $POSITIVE_SELECTED_DIR/$testmodel
+                    echo -e "In" ${testmodel}"," ${cotrfa_name}" gene was predicted as the positive selected one"! >> $CURRENT_DIR/progress_output.txt
+                fi
+            fi
+
+        done
+
+        #元居た作業ディレクトリへ帰れ
+        cd $PAML_DIR
+
+    done   
+
+done < $TGL

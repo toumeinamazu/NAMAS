@@ -1,0 +1,77 @@
+#!/bin/bash
+#bashで動きます
+
+
+
+###RAxML-ngの実行
+
+
+
+##解析するディレクトリ
+MPT_DIR=$1
+
+#種名が書かれたリスト
+SPECIES_FILE=$2
+
+#thread数、コアと一致させたほうがいいのかな？
+BS_NUM=$3
+THREADS=$4
+
+
+allfishname=()
+while read species || [ -n "${species}" ]; do
+    allfishname+=("$species")
+done < $SPECIES_FILE
+
+
+##各fastaファイルが格納されているPATHを指定
+#CURRENT_DIRのPATHを取得
+CURRENT_DIR=${MPT_DIR%/RESULTS/*}
+
+#Single_Copy_Orthologue_Sequencesのコドンアライメントまでを行うディレクトリ作成(アミノ酸→コドン→コドントリムド)
+ALFS_DIR=$CURRENT_DIR/RESULTS/SINGLE_COPY_ORTHOLOGUES_CODON_ALIGNMENT/CODON_ALIGNMENT_TRIMED
+
+#core_dumpした雑魚を救うディレクトリ
+RESCUE_DIR=$MPT_DIR/RESCUE;mkdir -p $RESCUE_DIR
+
+
+
+#作業ディレクトリへ移動
+cd $MPT_DIR
+
+#temp_geneid_listの取得
+TGL=`ls *_gene_list.txt`
+
+#遺伝子IDが書かれたtxtファイルを解析
+while read cotrfa || [ -n "${cotrfa}" ]; do
+    cotrfa_name=${cotrfa%_codon*}
+
+    #遺伝子ごとの作業ディレクトリを作成
+    OUT_DIR=$MPT_DIR/$cotrfa_name;mkdir -p $OUT_DIR
+
+    #用いる遺伝子の指定
+    cp -f $ALFS_DIR/$cotrfa $OUT_DIR
+    cp -f $OUT_DIR/$cotrfa $OUT_DIR/original_${cotrfa}
+    FAS=$OUT_DIR/$cotrfa
+
+    for fishname in ${allfishname[@]}; do
+        sed -i -e "s/${fishname}\w*/$fishname/g" $FAS
+    done
+
+    cd $OUT_DIR
+
+    #RAxML-ngで系統解析
+    raxml-ng --msa $FAS --all --model GTR+G+I --bs-trees $BS_NUM --threads $THREADS
+
+    cd -
+
+    #core_dumpした雑魚を救います（救わないとASTRALにいけない）
+    if [ -f $cotrfa_name/${cotrfa_name}_codon_aligned_trimed.fasta.raxml.bestTree ] && [ -f $cotrfa_name/${cotrfa_name}_codon_aligned_trimed.fasta.raxml.bootstraps ]; then
+        :
+        else
+            mkdir -p $RESCUE_DIR/$cotrfa_name
+            mv $FAS $OUT_DIR/original_${cotrfa} $RESCUE_DIR/$cotrfa_name
+            rm -rf $OUT_DIR
+    fi
+
+done < $TGL

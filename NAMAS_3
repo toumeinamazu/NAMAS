@@ -1,0 +1,994 @@
+#!/bin/bash
+#bashで動きます
+
+#condaを起動してください(ここのpathは自分で指定してね)
+source /home/phan1ynca/mambaforge/etc/profile.d/conda.sh
+conda activate
+conda deactivate
+conda deactivate
+conda activate
+
+#astralのpathを指定してね
+ASTRAL=~/tool/Astral/astral.5.7.8.jar
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+### 使い方
+## 1. NAMAS のパスを通してね。あと全てのファイルのパーミッションを 755 に変更してね。chmod 755 your_namas_path/*
+## 2. 5行目をあなたの conda/mamba にある conda.sh のパスに変更してね
+## 3. ALLFISHID.txt を下の通りに書いてね。
+## 4. ALLFISHID.txt に書いた種の系統関係を Newick 形式で ALLFISH.tre ファイルに書き込んでね。
+## 5. 4.で書き込む時にあなたが進化速度が挙がってほしいと願う生き物の後ろに #1 を付けてね。
+## 6. 下にある使用するソフトを確認して無かったら自分で入れてね。mamba で入れるとすごく楽だよ
+## 7. 実行する時は NAMAS ALLFISHID.txt ALLFISH.tre your_output_dir(絶対パス推奨) って打ち込んでね。
+## 8. なんかとれてくるといいね。
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+### ALLFISHID.txtの書き方
+
+## 二種類あるよ ( ゲノム配列をデータベースなどからダウンロードする場合 / 目的のゲノム配列を既に入手していた場合)
+#  下記を一つの単位として羅列してね
+
+
+## 1. ゲノム配列をデータベースなどからダウンロードする場合
+
+#   #FISHID
+#   GENOME_LINK.fna.gz
+#   GFF_LINK.gff.gz
+#   refseq/genbank
+#   DIHSIF#
+
+
+## 2. 目的のゲノム配列を既に入手していた場合
+
+#   #FISHID
+#   PEPTIDE_PATH:ペプチド配列の絶対パス
+#   CDS_PATH:CDS配列の絶対パス
+#   DIHSIF#
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+### ALLFISH.treの書き方
+# ただの Newick ファイルだけど #1 を忘れないでね。
+
+#   (((Kryptopterus_macrocephalus,Kryptopterus_vitreolus #1),Silurus_meridionalis),(Pangasianodon_hypophthalumus,(Ictalurus_punctatus,Ictalurus_furcatus)),Tachysurus_fulvidraco);
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+### 使用するソフト
+##conda or mambaでインストールするソフト(遺伝研でやるならmambaがおすすめ、間違いなく)
+    #gffread
+    #seqkit
+    #orthofinder
+    #mafft
+    #pal2nal
+    #trimal
+
+##コマンドラインでインストールするソフト
+    #paml
+
+##使用するpythonスクリプト
+    #extract_longest_seq_3.py
+    #making_tre_3.py
+    #making_ctl_3.py
+    #pamlevaluation_3.py
+
+###必要なモジュール
+    #biopython
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+###宣戦布告
+echo                                                                                                              
+echo                                                                                                              
+echo                                                                                                              
+echo                                                                                                              
+echo      '@@@@@@+     @@@@@+#      @@@@@@@+       @@@@@@@#+   %@@@@@@@+#      @@@@@@@+         +@@@@@@@@@%'        
+echo      '@@@@@@%+    @@@@@=*     .@@@@@@@#=      @@@@@@@%-   @@@@@@@@=#     .@@@@@@@#=      *@@@@@@@@@@@@%='     
+echo      '@@@@@@@@+   @@@@@=*     @@@@@@@@@+*     @@@@@@@@++  @@@@@@@@=#     @@@@@@@@@+*     @@@@@=   @@@@@#+'     
+echo      '@@@@@@@@@+  @@@@@=*    @@@@@%@@@@%=     @@@@@@@@%- @@@@@@@@@=#    @@@@@%@@@@%=     @@@@@@%  ='           
+echo      '@@@@@@@@@@*%@@@@@=*    @@@@#+@@@@@*+    @@@@@@@@@=%@@@%@@@@@=#    @@@@#+@@@@@*+     @@@@@@@@@@@@'        
+echo      '@@@@@@@@@@@@@@@@@=*   @@@@@=* @@@@@=    @@@@#@@@@%@@@@*@@@@@=#   @@@@@=* @@@@@=       @@@@@@@@@@@*'      
+echo      '@@@@@+#@@@@@@@@@@=*  *@@@@@*  @@@@@#=   @@@@*#@@@@@@@@=@@@@@=#  *@@@@@*  @@@@@#=           @@@@@@@=='    
+echo      '@@@@@+* @@@@@@@@@=*  @@@@@@@@@@@@@@@+*  @@@@*+@@@@@@@*+@@@@@=#  @@@@@@@@@@@@@@@+*  @@@@#*    @@@@@+*'    
+echo      '@@@@@+*  @@@@@@@@=* @@@@@@@@@@@@@@@@%=  @@@@*=@@@@@@@=#@@@@@=# @@@@@@@@@@@@@@@@%=%@@@@@@#-  :@@@@@='     
+echo      '@@@@@+*   #@@@@@@=*#@@@@@*%     @@@@@*+@@@@@*= @@@@@#= @@@@@=#-@@@@@*%     @@@@@*+ #@@@@@@@@@@@@@+'      
+echo      '@@@@@*#    .@@@@@*#@@@@@%+      @@@@@@+%@@@@#*  @@@@*# @@@@@+%@@@@@%+      @@@@@@+.   @@@@@@@@@%'        
+echo                                                                                                              
+echo                                                                                                              
+echo                                                                                                              
+echo                                                                                                              
+echo     
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+#初期位置に戻るのは基本です、そしてそれはあなたが望みなさい
+CURRENT_DIR=$1
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+##デフォルトの設定
+
+#-i|--input
+FILE=0
+#-mp|--multi_process
+mlpro=8
+#-pl|--paml_likelihood_ratio_test_value
+plrtv=0.95
+#-hw|--higher_w
+hgw=0
+#-sel|--selected_genes_search
+sel=0
+#-phy|--phylogenetic_analysis
+phy=0
+#-rt|--raxmlng_thread
+rxth=8
+#-bs|--bootstrap_trees
+bstre=1000
+#-dvt|--divergence_time_analysis
+dvtmal=0
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+##optionの設定
+
+function print_help () {
+    echo 'NAMAS_OPTION'
+    echo ''
+    echo '-i|--input'
+    echo '-mp|--multi_process'
+    echo '-pl|--paml_likelihood_ratio_test_value'
+    echo '-hw|--higher_w'
+    echo '-sel|--selected_genes_search'
+    echo '-phy|--phylogenetic_analysis'
+    echo '-rt|--raxmlng_thread'
+    echo '-bs|--bootstrap_trees'
+    echo '-dvt|--divergence_time_analysis'
+}
+
+
+# parse arguments
+while [[ $# -gt 0 ]]; do
+    key=$1
+    case ${key} in
+        -i|--input)
+            FILE=$2
+            shift
+            ;;
+        -mp|--multi_process)
+            mlpro=$2
+            shift
+            ;;
+        -pl|--paml_likelihood_ratio_test_value)
+            plrtv=`python -c "print(1-$2)"`
+            shift
+            ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        -hw|--higher_w)
+            hgw=1
+            ;;
+        -sel|--selected_genes_search)
+            sel=1
+            TREFILE=$2
+            shift
+            ;;
+        -phy|--phylogenetic_analysis)
+            phy=1
+            ;;
+        -rt|--raxmlng_thread)
+            rxth=$2
+            shift
+            ;;
+        -bs|--bootstrap_trees)
+            bstre=$2
+            shift
+            ;;
+        -dvt|--divergence_time_analysis)
+            dvtmal=1
+            ;;
+    esac
+    shift
+done
+
+if [ $FILE == 0 ]; then
+    print_help
+    exit 0
+fi
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+###ディレクトリの設定
+mkdir -p $CURRENT_DIR
+cd $CURRENT_DIR
+
+#progress確認ファイルの作成
+echo PROGRESS OUTPUT_`date "+%Y_%m_%d_%H_%M_%S"` >> progress_output.txt
+
+#各ナマズからLONGEST_PEPを集めてORTHOFINDERのINPUTFILEを作る(ディレクトリ)
+ORTHOFINDER_INPUT=$CURRENT_DIR/RESULTS/ALL_SPECIES_LONGEST_PEP
+mkdir -p $ORTHOFINDER_INPUT
+
+#Single_Copy_Orthologue_Sequencesのコドンアライメントまでを行うディレクトリ作成(アミノ酸→コドン→コドントリムド)
+CODON_ALIGNMENT_DIR=$CURRENT_DIR/RESULTS/SINGLE_COPY_ORTHOLOGUES_CODON_ALIGNMENT
+mkdir -p $CODON_ALIGNMENT_DIR/PEPTIDE_ALIGNMENT;mkdir -p $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT;mkdir -p $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED
+
+#trimalによって産み落とされる虚無fastaを格納するディレクトリ
+EMPTY_FASTA_DIR=$CURRENT_DIR/RESULTS/EMPTY_FASTA_GENES;mkdir -p $EMPTY_FASTA_DIR
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+##ゲノム取得から最大長タンパクの取得まで
+echo -e "YOUR JOB WILL BE STARTED\\n\\nEXTRACTING LONGEST PEP WILL BE STARTED"
+
+
+flag=0
+i=-1
+allfishid=()
+allfishname=()
+ALREMADE_FLAG=0
+
+
+while read line || [ -n "${line}" ]; do
+    if [ "$line" = "#FISHID" ]; then
+        flag=1
+        elif [ "$line" = "DIHSIF#" ]; then
+            flag=0
+            i=-1
+            allfishid=()
+            ALREMADE_FLAG=0
+
+    fi
+
+
+    if [ $flag -eq 1 ]; then
+        i=$((++i))
+    fi
+    
+    
+    if [ 0 -lt $i ] && [ $i -lt 5 ]; then
+        allfishid+=("$line")
+
+        if [[ "$line" == *PEPTIDE_PATH:* ]]; then
+            ALREMADE_FLAG=1
+        fi
+
+
+        ##ゲノム配列をデータベースなどから新規にダウンロードする場合
+        if [ $i -eq 4 ] && [ $ALREMADE_FLAG -ne 1 ]; then
+            FISH=${allfishid[0]}
+            GENOME_LINK=${allfishid[1]}
+            GFF_LINK=${allfishid[2]}
+            SOURCE=${allfishid[3]}
+
+            allfishname+=($FISH)
+
+            #progress確認ファイルの作成
+            echo -e ${FISH}" : PROGRESS OUTPUT" >> progress_output.txt
+
+
+            #OUT_DIRの作成
+            OUT_DIR=$CURRENT_DIR/RESULTS/FISH_GENOME/$FISH
+            mkdir -p $OUT_DIR
+
+
+            #WGET_GENOME_GFFの実行
+            if [ ! -e ${OUT_DIR}/${FISH}.fasta ]; then
+
+                cd $OUT_DIR
+                wget $GENOME_LINK;wget $GFF_LINK;gunzip *.gz
+                mv *.fna $FISH.fasta;mv *.gff $FISH.gff
+                echo -e "FISH=$FISH \nGENOME_LINK=$GENOME_LINK \nGFF_LINK=$GFF_LINK \n"  >> fish_information.txt
+                cd -
+                echo -e ${FISH}" : WGET_GENOME_GFF was finished\n" >> progress_output.txt
+
+                else
+                    echo ${FISH}" : WGET_GENOME_GFF is already done"
+            fi
+
+
+
+            #GFFREADの実行
+            if [ ! -e ${OUT_DIR}/${FISH}_ALL_PEP.fasta ]; then
+
+                cd $OUT_DIR
+                gffread -E -F -S -J -y ${FISH}_ALL_PEP.fasta -x ${FISH}_ALL_CDS.fasta -g $FISH.fasta $FISH.gff
+                cd -
+                echo -e ${FISH}" : GFFREAD was finished\n" >> progress_output.txt
+
+                else
+                    echo ${FISH}" : GFFREAD is already done"
+            fi
+
+
+            #extract_logest_seqの実行
+            if [ ! -e ${OUT_DIR}/${FISH}_LONGEST_PEP.fasta ]; then
+
+                cd $OUT_DIR
+                extract_longest_seq_3.py --source $SOURCE --prefix ${FISH} ${FISH}_ALL_PEP.fasta > ${FISH}_LONGEST_PEP.fasta
+                extract_longest_seq_3.py --source $SOURCE --prefix ${FISH} ${FISH}_ALL_CDS.fasta > ${FISH}_LONGEST_CDS.fasta
+                cp ${FISH}_LONGEST_PEP.fasta $ORTHOFINDER_INPUT
+                cd -
+
+                #配列数の変化を記述
+                if [ ! -e ${OUT_DIR}/CONTIG_COUNT.txt ]; then
+
+                    cd $OUT_DIR
+                    echo -e "ALL_PEP_COUNT" > CONTIG_COUNT.txt
+                    seqkit seq -n ${FISH}_ALL_PEP.fasta |wc -l >> CONTIG_COUNT.txt
+                    echo -e "LONGEST_PEP_COUNT" >> CONTIG_COUNT.txt
+                    seqkit seq -n ${FISH}_LONGEST_PEP.fasta |wc -l >> CONTIG_COUNT.txt
+                    cd -
+                    echo -e ${FISH}" : CONTIG_COUNT was finished\n" >> progress_output.txt
+
+                    else
+                        echo ${FISH}" : YOUR PEPTIDE CONTIG COUNT is already done"
+                fi
+                echo -e ${FISH}": EXTRACT_LONGEST_SEQ was finished\n" >> progress_output.txt
+
+                else 
+                    echo ${FISH}" : EXTRACT_LONGEST_SEQ is already done"
+            fi
+
+            ##目的のゲノム配列を既に入手していた場合
+            elif [ $i -eq 3 ] && [ $ALREMADE_FLAG -eq 1 ]; then
+                FISH=${allfishid[0]}
+                PRE_PEPTIDE_PATH=${allfishid[1]}
+                PRE_CDS_PATH=${allfishid[2]}
+
+                allfishname+=($FISH)
+                #PATHの先頭についた目印を取り外すよ
+                PEPTIDE_PATH=`echo ${PRE_PEPTIDE_PATH##*PEPTIDE_PATH:}`;PEPTIDE_NAME=`echo ${PRE_PEPTIDE_PATH##*/}`
+                CDS_PATH=`echo ${PRE_CDS_PATH##*CDS_PATH:}`;CDS_NAME=`echo ${PRE_CDS_PATH##*/}`
+
+                #progress確認ファイルの作成
+                echo -e ${FISH}" : PROGRESS OUTPUT" >> progress_output.txt
+
+
+                #OUT_DIRの作成
+                OUT_DIR=$CURRENT_DIR/RESULTS/FISH_GENOME/$FISH
+                mkdir -p $OUT_DIR
+
+
+                #既存ゲノムをコピーし、ペプチド配列をALL_SPECIES_LONGEST_PEPに移動
+                if [ ! -e ${OUT_DIR}/${FISH}.fasta ]; then
+
+                    cd $OUT_DIR
+                    cp $PEPTIDE_PATH $OUT_DIR;mv $PEPTIDE_NAME uma.fasta;mv uma.fasta ${FISH}_LONGEST_PEP.fasta;cp ${FISH}_LONGEST_PEP.fasta $ORTHOFINDER_INPUT
+                    cp $CDS_PATH $OUT_DIR;mv $CDS_NAME shika.fasta;mv shika.fasta ${FISH}_LONGEST_CDS.fasta
+                    echo -e "FISH=$FISH \nPEPTIDE_PATH=$PEPTIDE_PATH \nCDS_PATH=$CDS_PATH \n"  >> fish_information.txt
+                    cd -
+                    echo -e ${FISH}" : PEPTIDE AND CDS COPYING was finished \n" >> progress_output.txt
+
+                    else
+                        echo ${FISH}" : PEPTIDE AND CDS COPYING is already done"
+                fi
+
+                #配列数の変化を記述
+                if [ ! -e ${OUT_DIR}/CONTIG_COUNT.txt ]; then
+
+                    cd $OUT_DIR
+                    echo -e "LONGEST_PEP_COUNT" >> CONTIG_COUNT.txt
+                    seqkit seq -n ${FISH}_LONGEST_PEP.fasta |wc -l >> CONTIG_COUNT.txt
+                    cd -
+                    echo -e ${FISH}" : CONTIG_COUNT was finished\n" >> progress_output.txt
+
+                    else
+                        echo ${FISH}" : YOUR PEPTIDE CONTIG COUNT is already done"
+                fi
+        fi 
+    fi
+done < $FILE
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+##ORTHOFINDERを使ってsingle copy orthologue groupを決定
+echo "ORTHOFINDER WILL BE STARTED"
+
+
+
+#ORTHOFINDERの実行についての分岐
+#勝手に追加したり除去したりする方をデフォルトにする
+
+#新規にORTHOFINDERを実行する場合
+if [ ! -d $ORTHOFINDER_INPUT/OrthoFinder ]; then
+    #新規会員さんいらっしゃい
+    ORTHO_BRANCH="-f $ORTHOFINDER_INPUT"
+    
+
+    #既にORTHOFINDERが実行されていた時、かつ勝手に追加したり除去したりする場合
+    elif [ -d $ORTHOFINDER_INPUT/OrthoFinder ]; then
+        
+        #既存の結果のSpeciesIDs.txtを読み込ませる(最後に更新されたディレクトリの場所を指定)
+        ORTHOFINDER_RESULT_DIR=`ls -rt $ORTHOFINDER_INPUT/OrthoFinder | tail -n 1`
+        ORTHO_SPECIESID_DIR=$ORTHOFINDER_INPUT/OrthoFinder/$ORTHOFINDER_RESULT_DIR/WorkingDirectory
+
+            #用いた種の違いを明示させる(DIFFERENT_SPECIES.txt)
+            echo -n > $CURRENT_DIR/DIFFERENT_SPECIES.txt
+
+            #新規に登録された魚は誰？
+            fishadd=()
+            for fishname_a in ${allfishname[@]}; do
+                if grep -q $fishname_a $ORTHO_SPECIESID_DIR/SpeciesIDs.txt >/dev/null; then
+                    :
+                    else
+                        fishadd+=($fishname_a)
+                fi
+            done
+
+            #fishaddの配列数をカウントさせ、分岐を決定
+            addnum=`echo ${#fishadd[*]}`
+            if [ 0 -eq $addnum ]; then
+                :
+                else
+                    ORTHOFINDER_INPUT=$CURRENT_DIR/RESULTS/ALL_SPECIES_LONGEST_PEP;mkdir -p $ORTHOFINDER_INPUT/OTHERS_LONGEST_PEP
+                    for addexport in ${fishadd[@]}; do
+                        echo 'add:'$addexport >> DIFFERENT_SPECIES.txt
+                        mv $ORTHOFINDER_INPUT/${addexport}_LONGEST_PEP.fasta $ORTHOFINDER_INPUT/OTHERS_LONGEST_PEP
+                    done    
+                    
+
+                    if [ 1 -eq $addnum ]; then
+                        echo ${fishadd[@]}' was added' >> progress_output.txt
+
+                        elif [ 1 -lt $addnum ]; then
+                            echo ${fishadd[@]}' were added' >> progress_output.txt
+                    fi
+            fi
+
+
+
+            #除名された魚は誰？
+            ORTHOFINDER_SPECIES=()
+            while read line || [ -n "${line}" ]; do
+                ORTHOFINDER_SPECIES+=(`echo $line | grep -Po "\w+(?=_LONGEST_PEP.fasta)"`)
+            done < $ORTHO_SPECIESID_DIR/SpeciesIDs.txt
+
+            fishdelete=()
+            for fishname_d in ${ORTHOFINDER_SPECIES[@]}; do
+                if printf '%s\n' "${allfishname[@]}" | grep -qx $fishname_d; then
+                    :
+                    else
+                        fishdelete+=($fishname_d)
+                fi
+            done
+
+            #fishdeleteの配列数をカウントさせ、分岐を決定
+            delnum=`echo ${#fishdelete[*]}`
+            if [ 0 -eq $delnum ]; then
+                :
+                else
+                    for delexport in ${fishdelete[@]}; do
+                        echo 'del:'$delexport >> DIFFERENT_SPECIES.txt
+
+                        #今回解析に使わない種をALL_SPECIES_LONGEST_PEPから除外
+                        rm -rf $ORTHOFINDER_INPUT/${delexport}_LONGEST_PEP.fasta
+                        echo ${delexport}' was deleted'
+                    done
+
+                    if [ 1 -eq $delnum ]; then
+                        echo ${fishdelete[@]}' was deleted' >> progress_output.txt
+
+                        elif [ 1 -lt $delnum ]; then
+                            echo ${fishdelete[@]}' were deleted' >> progress_output.txt 
+                    fi
+            fi
+
+            #既存の結果に含まれる種と今回扱う種に違いはなかった場合
+            if [ ! -s $CURRENT_DIR/DIFFERENT_SPECIES.txt ]; then
+                ORTHO_BRANCH='ESCAPE'
+
+                #種の追加、除去が確認された
+                else
+                    TIME=`date "+%Y_%m_%d_%H_%M_%S"`_moved
+                    FORMER_RESULTS_DIR=$CURRENT_DIR/FORMER_RESULTS/$TIME;mkdir -p $FORMER_RESULTS_DIR
+                    mv $ORTHOFINDER_INPUT/OrthoFinder $FORMER_RESULTS_DIR
+                    ORTHO_BRANCH="-f $ORTHOFINDER_INPUT"
+            fi  
+fi
+
+echo 'DIE YOUR MOTHER FUCKER (PREPARING FOR ORTHOFINDER WAS DONE, I MEAN)' `date "+%Y_%m_%d_%H_%M_%S"`
+
+if [ "$ORTHO_BRANCH" != 'ESCAPE' ]; then
+
+    #前回の出力を移動
+    cd $RESULTS
+    mv * $FORMER_RESULTS_DIR
+    mv $FORMER_RESULTS_DIR/ALL_SPECIES_LONGEST_PEP $FORMER_RESULTS_DIR/FISH_GENOME $CURRENT_DIR/RESULTS
+    cd $CURRENT_DIR/RESULTS/ALL_SPECIES_LONGEST_PEP
+
+
+    #######################################################################################################
+
+    ##ディレクトリを定義しなおす
+    #Single_Copy_Orthologue_Sequencesのコドンアライメントまでを行うディレクトリ作成
+    CODON_ALIGNMENT_DIR=$CURRENT_DIR/RESULTS/SINGLE_COPY_ORTHOLOGUES_CODON_ALIGNMENT
+    mkdir -p $CODON_ALIGNMENT_DIR/PEPTIDE_ALIGNMENT;mkdir -p $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT;mkdir -p $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED
+
+    #######################################################################################################
+
+
+    ##ORTHOFINDERの実行
+    orthofinder $ORTHO_BRANCH -t 16 -a 16 -M msa -os
+    
+    echo -e "ORTHOFINDER was finished\n" >> progress_output.txt;echo "ORTHOFINDER was already done"
+    
+
+    #出力結果を最新状況にソート(もう一度ORTHOFINDER_RESULT_DIRを指定しなおす)
+    ORTHOFINDER_RESULT_DIR=`ls -rt $ORTHOFINDER_INPUT/OrthoFinder | tail -n 1`
+    Single_Copy_Orthologue_Sequences_DIR=$ORTHOFINDER_INPUT/OrthoFinder/$ORTHOFINDER_RESULT_DIR/Single_Copy_Orthologue_Sequences
+
+
+
+    #Single_Copy_Orthologue_Sequencesに対しMAFFTでPEPTIDEのALIGNMENTを実行
+    cd $Single_Copy_Orthologue_Sequences_DIR
+    for fasta in *.fa ; do
+        fastaname=${fasta%.*}
+        mafft --amino --thread 16 --auto ${fastaname}.fa > $CODON_ALIGNMENT_DIR/PEPTIDE_ALIGNMENT/${fastaname}_aligned.fa
+    done
+    cd -
+    echo -e "MAFFT was finished\n" >> progress_output.txt;echo "MAFFT was already done" 
+
+
+    #ESCAPEの場合
+    else
+        echo "ORTHOFINDER was skipped"
+fi
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+##single copy orthologue groupで単離したpeptide配列を塩基配列に変換しCODONアライメントファイルを作成
+if [ "$ORTHO_BRANCH" != 'ESCAPE' ]; then
+    echo -e "MAKING CODON ALIGNMENT FILES WILL BE STARTED\n" `date "+%Y_%m_%d_%H_%M_%S"` >> progress_output.txt;echo "MAKING CODON ALIGNMENT FILES WILL BE STARTED"
+
+    #ORTHOFINDERに用いた種名配列を取得
+    practical_fishname=()
+    for alfin in ${allfishname[@]}; do
+        if printf '%s\n' "${fishdelete[@]}" | grep -qx "$alfin"; then
+            :
+            else
+                practical_fishname+=($alfin)
+        fi
+    done
+
+    #用いた種全てのCDS配列を融合しキメラfastaを作成
+    if [ ! -d $CODON_ALIGNMENT_DIR/ALL_SPECIES_LONGEST_CDS ]; then
+        cd $CODON_ALIGNMENT_DIR;mkdir -p ALL_SPECIES_LONGEST_CDS
+        ALL_FISH_CDS_FASTA=()
+        echo -n > ALL_SPECIES_LONGEST_CDS/CHIMERA_CDS.fasta
+        for prafin in ${practical_fishname[@]}; do
+            cp $CURRENT_DIR/RESULTS/FISH_GENOME/${prafin}/${prafin}_LONGEST_CDS.fasta $CODON_ALIGNMENT_DIR/ALL_SPECIES_LONGEST_CDS
+            ALL_FISH_CDS_FASTA+=(ALL_SPECIES_LONGEST_CDS/${prafin}_LONGEST_CDS.fasta)
+        done
+        cat ${ALL_FISH_CDS_FASTA[@]} > ALL_SPECIES_LONGEST_CDS/CHIMERA_CDS.fasta
+        cd -
+        echo -e "MAKING CHIMERA_CDS.fasta was finished\n" >> progress_output.txt;echo "MAKING CHIMERA_CDS.fasta was finished" 
+
+        else
+            echo "MAKING CHIMERA_CDS.fasta was already done"
+    fi
+
+
+    #キメラfastaを参照させ、全てのPEPTIDE_ALIGNMENTに対しCODONアライメントを作成
+
+    cd $CODON_ALIGNMENT_DIR/PEPTIDE_ALIGNMENT
+    for aligned_pep in *.fa ; do
+        pep_name=${aligned_pep%_aligned*}
+
+        #seqkitでpep_fasta内の種名をリスト化
+        seqkit fx2tab -n $aligned_pep > ${pep_name}_list.txt
+
+        #seqkitで種名リストを元にCDSをキメラFASTAから抽出
+        seqkit grep -j 16 -f ${pep_name}_list.txt $CODON_ALIGNMENT_DIR/ALL_SPECIES_LONGEST_CDS/CHIMERA_CDS.fasta > ${pep_name}_CDS.fasta
+
+        #spal2nalでalignment済みのpep_fastaとCDS_fastaを用いてcodon_alignment_fastaを作成
+        pal2nal.pl $aligned_pep ${pep_name}_CDS.fasta -output fasta > $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT/${pep_name}_codon_aligned.fasta
+        
+        #trimalでギャップを含む領域を除去
+        trimal -in $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT/${pep_name}_codon_aligned.fasta -out $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${pep_name}_codon_aligned_trimed_temp.fasta -gt 1
+
+        #私は改行を許さない
+        seqkit grep -j 16 -w 0 -f ${pep_name}_list.txt $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${pep_name}_codon_aligned_trimed_temp.fasta > $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${pep_name}_codon_aligned_trimed.fasta
+
+        #trimalによってたまに産み落とされる0キロバイトの虚無fastaを移動させ、PAMLに突っ込ませない
+        if [ ! -s $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${pep_name}_codon_aligned_trimed.fasta ]; then
+            #空の場合の処理
+            cp -f $CODON_ALIGNMENT_DIR/PEPTIDE_ALIGNMENT/${pep_name}_aligned.fa $EMPTY_FASTA_DIR
+            rm -rf $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${pep_name}_codon_aligned_trimed.fasta
+        
+            #空じゃなければ何もしません
+            else
+                :
+        fi
+
+        #ごみは捨てます
+        rm -rf ${pep_name}_CDS.fasta $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${pep_name}_codon_aligned_trimed_temp.fasta 
+    done
+    cd -
+    echo -e "SEQKIT, PAL2NAL and TRIMAL were finished\n" >> progress_output.txt;echo "SEQKIT, PAL2NAL and TRIMAL were finished" 
+
+    #ESCAPEの場合
+    else
+        echo "SEQKIT, PAL2NAL and TRIMAL was skipped"
+fi
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+##任意の追加解析のためのmulti process化の準備
+
+if [ $phy == 1 ] || [ $sel == 1 ]; then
+
+    #multi processのtempファイル達を置く場所
+    MULTI_PROCESS_TEMP_DIR=$CURRENT_DIR/RESULTS/MULTI_PROCESS_TEMP;mkdir -p $MULTI_PROCESS_TEMP_DIR
+
+    #multi processで分割するTEMP_DIRの作成
+    for (( i=0; i < mlpro ; i++ )); do
+        mkdir -p $MULTI_PROCESS_TEMP_DIR/TEMPO_${i}
+    done
+
+    #トリム済みのコドンアライメントIDをTEMP_DIRに割り振る
+    separating_3.py $mlpro $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED $MULTI_PROCESS_TEMP_DIR
+
+
+
+    #######################################################################################################
+    #######################################################################################################
+    #######################################################################################################
+
+
+
+    ##PAMLの実行(multi process)
+
+    if [ $sel == 1 ]; then
+
+        #######################################################################################################
+
+        #PAMLの出力ディレクトリ
+        PAML_DIR=$CURRENT_DIR/RESULTS/WHOLE_ORTHOLOGUES_PAML;mkdir -p $PAML_DIR
+
+        #選択がかかったものだけを抽出し格納するディレクトリ(BRANCH_SITEとBRANCH)
+        POSITIVE_SELECTED_DIR=$CURRENT_DIR/RESULTS/POSITIVE_SELECTED_GENES;mkdir -p $POSITIVE_SELECTED_DIR/BRANCH_SITE;mkdir -p $POSITIVE_SELECTED_DIR/BRANCH
+
+        #######################################################################################################
+
+        echo 'WHOLE ORTHOLOGUES PAML WILL BE STARTED' `date "+%Y_%m_%d_%H_%M_%S"`
+
+        #multi processにします！
+        multi_processing_3.py selected_genes_search $mlpro $MULTI_PROCESS_TEMP_DIR $TREFILE $plrtv 0
+
+        #各TEMP_DIRに格納された遺伝子ごとのPAMLディレクトリをPAML_DIRにまとめなおす
+        for (( i=0; i < mlpro ; i++ )); do
+            mv $MULTI_PROCESS_TEMP_DIR/TEMPO_${i}/* $PAML_DIR
+        done
+
+        #元居た場所に帰ります
+        cd $CURRENT_DIR
+        echo -e "PAML was finished" `date "+%Y_%m_%d_%H_%M_%S"` >> progress_output.txt;echo "PAML was finished" `date "+%Y_%m_%d_%H_%M_%S"`
+
+
+
+        #######################################################################################################
+        #######################################################################################################
+        #######################################################################################################
+
+
+
+        ##最後はお前が確認しろ
+        echo "FINALLY PREPARING PAML RESULTS FOR CHECKING WILL BE STARTED !"
+        echo -e "YOU MUST CHECK THE ALIGNMENT OF YOUR RESULTS PREDICTED AS POSITIVE SELECTED GENES !\n" `date "+%Y_%m_%d_%H_%M_%S"` >> progress_output.txt
+        echo -e "YOU MUST CHECK THE ALIGNMENT OF YOUR RESULTS PREDICTED AS POSITIVE SELECTED GENES !\n" `date "+%Y_%m_%d_%H_%M_%S"`
+
+
+        #PAMLの結果の妥当性を確かめろ
+        for testmodel in BRANCH_SITE BRANCH ; do
+
+            cd $POSITIVE_SELECTED_DIR/$testmodel
+            ls
+            uma=`ls -1 | wc -l`
+            if [ 1 -eq $uma ]; then
+                echo 'was detected !'
+
+                elif [ 1 -lt $uma ]; then
+                    echo 'were detected !'
+            fi
+
+
+            for posege in *.txt ; do
+                posege_name=${posege%_BRANCH*}
+
+                if [ ! -d $POSITIVE_SELECTED_DIR/$testmodel/$posege_name ]; then
+                    #PAML/オルソログID/テストモデル → PAML/オルソログID/テストモデル_オルソログID →
+                    #POSITIVE_SELECTED_GENES/テストモデル/テストモデル_オルソログID → POSITIVE_SELECTED_GENES/テストモデル/オルソログID
+                    cp -f -r $PAML_DIR/$posege_name/$testmodel $PAML_DIR/$posege_name/${testmodel}_${posege_name}
+                    mv $PAML_DIR/$posege_name/${testmodel}_${posege_name} $POSITIVE_SELECTED_DIR/$testmodel
+                    mv $POSITIVE_SELECTED_DIR/$testmodel/${testmodel}_${posege_name} $POSITIVE_SELECTED_DIR/$testmodel/$posege_name
+
+                    #各階層のアライメントファイルをコピー
+                    cp -f $CODON_ALIGNMENT_DIR/PEPTIDE_ALIGNMENT/${posege_name}_aligned.fa \
+                    $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT/${posege_name}_codon_aligned.fasta \
+                    $CODON_ALIGNMENT_DIR/CODON_ALIGNMENT_TRIMED/${posege_name}_codon_aligned_trimed.fasta \
+                    $POSITIVE_SELECTED_DIR/$testmodel/$posege_name
+
+                    #印の役目、お疲れ様です
+                    rm $POSITIVE_SELECTED_DIR/$testmodel/${posege_name}_${testmodel}_DECISION.txt
+
+                    else
+                        echo ${posege_name}' dir was already created'
+                fi
+
+            done
+
+            #たまに発生する空fastaによる悲しいディレクトリ達の削除
+            rm -rf $POSITIVE_SELECTED_DIR/$testmodel/WHOLE_ORTHOLOGUES_PAML $POSITIVE_SELECTED_DIR/$testmodel/SINGLE_COPY_ORTHOLOGUES_CODON_ALIGNMENT
+            rm -rf $POSITIVE_SELECTED_DIR/WHOLE_ORTHOLOGUES_PAML $POSITIVE_SELECTED_DIR/SINGLE_COPY_ORTHOLOGUES_CODON_ALIGNMENT
+
+        done
+
+
+
+        #######################################################################################################
+        #######################################################################################################
+        #######################################################################################################
+
+
+
+        ##BRANCH_MODELで他種よりwが高い結果を抽出
+        if [ $hgw == 1 ]; then
+            #出力ファイルの作成
+            cd $POSITIVE_SELECTED_DIR
+            echo -n Orthogroup,foreground,background > HIGHER_W_in_BRANCH_MODEL.csv
+
+            #BRANCH_MODELのディレクトリ内の全IDを取得してfor文で処理
+            for rpevge in 'OG'* ; do
+                higher_w_detection_3.py $CURRENT_DIR $rpevge HIGHER_W_in_BRANCH_MODEL.csv
+            done
+        fi
+    fi
+
+
+
+    #######################################################################################################
+    #######################################################################################################
+    #######################################################################################################
+
+
+
+    ##RAxML-ngとASTRALで系統解析（multi process）
+    
+    if [ $phy == 1 ]; then
+        
+        #RAxML-ngで遺伝子ごとの系統樹を作成
+
+        #######################################################################################################
+
+        #系統樹解析用の出力ディレクトリを作成
+        PHYLOGENY_DIR=$CURRENT_DIR/RESULTS/PHYLOGENETIC_ANALYSIS
+        mkdir -p $PHYLOGENY_DIR/GENE_PHYLOGENIES;mkdir -p $PHYLOGENY_DIR/SPECIES_PHYLOGENY
+
+        #core_dumpした雑魚を格納する救済ディレクトリを作成
+        RESCUE_DIR=$PHYLOGENY_DIR/RESCUED_GENES;mkdir -p $RESCUE_DIR
+
+        #救済しきれなかったロクデナシ！を格納するディレクトリを作成
+        CORE_DUMPED_DIR=$PHYLOGENY_DIR/CORE_DUMPED;mkdir -p $CORE_DUMPED_DIR
+
+        #######################################################################################################
+
+        echo 'PHYLOGENETIC ANALYSIS WILL BE STARTED' `date "+%Y_%m_%d_%H_%M_%S"`
+
+        #species_nameを統一させないといけないことが発覚
+        ALFINA=$PHYLOGENY_DIR/SPECIES_PHYLOGENY/all_species_name_list.txt
+        echo -n > $ALFINA
+        for fsnm in ${allfishname[@]}; do
+            echo $fsnm >> $ALFINA
+        done
+
+        #multi processにします！
+        multi_processing_3.py phylogenetic_analysis $mlpro $MULTI_PROCESS_TEMP_DIR $ALFINA $bstre $rxth
+
+
+
+        #######################################################################################################
+        #######################################################################################################
+        #######################################################################################################
+
+
+
+        #各TEMP_DIRに格納された遺伝子ごとのPAMLディレクトリをPHYLOGENY_DIRにまとめなおす
+        #各TEMP_DIRに格納されているcore_dumpした遺伝子を救います
+        for (( i=0; i < mlpro ; i++ )); do
+            mv $MULTI_PROCESS_TEMP_DIR/TEMPO_${i}/RESCUE/* $RESCUE_DIR
+            rm -rf $MULTI_PROCESS_TEMP_DIR/TEMPO_${i}/RESCUE $MULTI_PROCESS_TEMP_DIR/TEMPO_${i}/temp_${i}_gene_list.txt
+            mv $MULTI_PROCESS_TEMP_DIR/TEMPO_${i}/* $PHYLOGENY_DIR/GENE_PHYLOGENIES
+        done
+
+        cd $RESCUE_DIR
+
+        for og in 'OG'*; do
+            cd $RESCUE_DIR/$og
+            
+            #パラメーター設定
+            FAS=$RESCUE_DIR/$og/${og}_codon_aligned_trimed.fasta
+            BS_NUM=$bstre
+            THREADS=$rxth
+
+            #RAxML-ngで系統解析
+            raxml-ng --msa $FAS --all --model GTR+G+I --bs-trees $BS_NUM --threads $THREADS
+
+            cd -
+
+            #core_dumpした雑魚を救います（救わないとASTRALにいけない+なんかメモリとかスレッドの問題じゃないやつがいる）
+            if [ -f $og/${og}_codon_aligned_trimed.fasta.raxml.bestTree ] && [ -f $og/${og}_codon_aligned_trimed.fasta.raxml.bootstraps ]; then
+                mv $RESCUE_DIR/$og $PHYLOGENY_DIR/GENE_PHYLOGENIES
+                else
+                    #最後の情けです
+                    mkdir -p $CORE_DUMPED_DIR/$og
+                    mv $FAS $RESCUE_DIR/$og/original_${og}_codon_aligned_trimed.fasta $CORE_DUMPED_DIR/$og
+                    rm -rf $RESCUE_DIR/$og
+
+                    #--blopt nr_safeの力
+                    cd $CORE_DUMPED_DIR/$og
+
+                    #RAxML-ngで系統解析
+                    fas=$CORE_DUMPED_DIR/$og/${og}_codon_aligned_trimed.fasta
+                    raxml-ng --msa $fas --all --model GTR+G+I --bs-trees $BS_NUM --threads $THREADS --blopt nr_safe
+
+                    cd - 
+
+                    #これでもcore_dumpした雑魚は捨てます
+                    if [ -f $og/${og}_codon_aligned_trimed.fasta.raxml.bestTree ] && [ -f $og/${og}_codon_aligned_trimed.fasta.raxml.bootstraps ]; then
+                        mv $CORE_DUMPED_DIR/$og $PHYLOGENY_DIR/GENE_PHYLOGENIES
+                        else
+                            #さようなら
+                            mv $CORE_DUMPED_DIR/$og/original_${og}_codon_aligned_trimed.fasta $CORE_DUMPED_DIR
+                            rm -rf $CORE_DUMPED_DIR/$og
+            fi
+        done
+
+
+
+        #######################################################################################################
+        #######################################################################################################
+        #######################################################################################################
+
+
+
+        #ASTRALで各遺伝子による系統樹を統合
+
+        #各遺伝子newickの統合用ファイル
+        ALGEPHY=$PHYLOGENY_DIR/SPECIES_PHYLOGENY/all_genes_phylogeny.tre
+        ALGEBSP=$PHYLOGENY_DIR/SPECIES_PHYLOGENY/all_genes_bootstrap_path
+
+        #各遺伝子の系統解析ディレクトリからnewick情報を抜き出し、一つのファイルに統合する
+        #各遺伝子の系統解析ディレクトリからbootstrapファイルのパスを抜き出し、一つのファイルに統合する
+        newick_concatenating_3.py $PHYLOGENY_DIR $ALGEPHY $ALGEBSP
+
+        #キメラと化したall_genes_phylogeny.treを使ってASTRALを実行(ASTRAL自体にもbootstrap replicatesをつける)
+        java -Xmx8000M -jar $ASTRAL -i $ALGEPHY -b $ALGEBSP -r 1000 -o $PHYLOGENY_DIR/SPECIES_PHYLOGENY/species_phylogeny.tre 2>$PHYLOGENY_DIR/SPECIES_PHYLOGENY/astral_analysis.log
+
+        #元居た場所に帰ります
+        cd $CURRENT_DIR
+        echo -e "PHYLOGENETIC ANALYSIS was finished" `date "+%Y_%m_%d_%H_%M_%S"` >> progress_output.txt;echo "PHYLOGENETIC ANALYSIS was finished" `date "+%Y_%m_%d_%H_%M_%S"`
+    fi
+
+
+
+    #######################################################################################################
+    #######################################################################################################
+    #######################################################################################################
+
+
+
+    ##後始末
+
+    #TEMP_DIRとtemp_num_gene_listを消します
+    cd $CURRENT_DIR/RESULTS
+    rm -rf $MULTI_PROCESS_TEMP_DIR
+fi
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+##MCMCTREEによる分岐年代推定
+
+if [ $dvtmal == 1 ]; then
+    
+    #single_orthologueを合体させてsuper_geneを作成
+
+fi
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+
+
+cd $CURRENT_DIR  
+echo -e "YOUR JOB WAS COMPLETELY FINISHED ! BYEBYE ! ZAIJIAN !\n" >> progress_output.txt;echo "YOUR JOB WAS FINISHED !" `date "+%Y_%m_%d_%H_%M_%S"`
